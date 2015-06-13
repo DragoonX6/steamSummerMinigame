@@ -20,11 +20,11 @@ var setClickVariable = false; // change to true to improve performance
 
 var disableParticleEffects = true; // Set to false to keep particle effects
 
-var disableFlinching = false; // Set to true to disable flinching animation for enemies.
+var disableFlinching = true; // Set to true to disable flinching animation for enemies.
 var disableCritText = false; // Set to true to disable the crit text.
 var disableText = false; // Remove all animated text. This includes damage, crits and gold gain. 
-                         // This OVERRIDES all text related options.
-                         
+						 // This OVERRIDES all text related options.
+						 
 var lockElements = true; // Set to false to allow upgrading all elements
 var slowStartMode = false; // Set to false to run script from beginning instead of lv11
 
@@ -115,13 +115,13 @@ function firstRun() {
 		initAutoClicker();
 	}
 
-    var box = document.getElementsByClassName("leave_game_helper")[0];
-    box.innerHTML = "Autoscript now enabled - your game ID is " + g_GameID +
-        "<br>Autoclicker: " + (enableAutoClicker?"enabled - "+clickRate+"cps, "+(setClickVariable?"variable":"clicks"):"disabled") +
-        "<br>Particle effects: " + (disableParticleEffects?"disabled":"enabled") +
-        "<br>Flinching effect: " + (disableFlinching?"disabled":"enabled") +
-        "<br>Crit effect: " + (disableCritText?"disabled":"enabled") +
-        "<br>Text: " + (disableText?"disabled":"enabled")
+	var box = document.getElementsByClassName("leave_game_helper")[0];
+	box.innerHTML = "Autoscript now enabled - your game ID is " + g_GameID +
+		"<br>Autoclicker: " + (enableAutoClicker?"enabled - "+clickRate+"cps, "+(setClickVariable?"variable":"clicks"):"disabled") +
+		"<br>Particle effects: " + (disableParticleEffects?"disabled":"enabled") +
+		"<br>Flinching effect: " + (disableFlinching?"disabled":"enabled") +
+		"<br>Crit effect: " + (disableCritText?"disabled":"enabled") +
+		"<br>Text: " + (disableText?"disabled":"enabled")
 }
 
 function initAutoClicker() {
@@ -265,27 +265,72 @@ function goToLaneWithBestTarget() {
 				}
 			}
 		}
-	
-		//Prefer lane with raining gold, unless current enemy target is a treasure or boss.
+		
+		// Prefer lane with the same element, unless the current enemy target is a treasure or boss
+		// Prefer raining gold if no same element enemy has been found
 		if(lowTarget != ENEMY_TYPE.TREASURE && lowTarget != ENEMY_TYPE.BOSS ){
-			var potential = 0;
-			rainingGold = false;
+			var ownElement = Math.abs(g_steamID.hashCode()%4);
+			switch(ownElement){
+				case 0: // Fire
+					ownElement = 1;
+					break;
+				case 1: // Water
+					ownElement = 3;
+					break;
+				case 2: // Earth
+					ownElement = 4;
+					break;
+				case 3: // Air
+					ownElement = 2;
+					break;
+			}
+
+			var sameElementFound = false;
 			for(var i = 0; i < g_Minigame.CurrentScene().m_rgGameData.lanes.length; i++){
 				// ignore if lane is empty
 				if(g_Minigame.CurrentScene().m_rgGameData.lanes[i].dps == 0)
 					continue;
-				var stacks = 0;
-				if(typeof g_Minigame.m_CurrentScene.m_rgLaneData[i].abilities[17] != 'undefined')
-					stacks = g_Minigame.m_CurrentScene.m_rgLaneData[i].abilities[17];
-					rainingGold = true; 
-					//console.log('stacks: ' + stacks);
-				for(var m = 0; m < g_Minigame.m_CurrentScene.m_rgEnemies.length; m++) {
-					var enemyGold = g_Minigame.m_CurrentScene.m_rgEnemies[m].m_data.gold;
-					if (stacks * enemyGold > potential) {
-                				potential = stacks * enemyGold;
-						preferredTarget = g_Minigame.m_CurrentScene.m_rgEnemies[m].m_nID;
-						preferredLane = i;
-        				}
+				
+				if(g_Minigame.CurrentScene().m_rgGameData.lanes[i].element == ownElement){
+					sameElementFound = true;
+					var maxHP = 0;
+					var curHP = 0;
+					for(var j = 0; j < g_Minigame.CurrentScene().m_rgGameData.lanes[i].enemies.length; j++){
+						var currentEnemy = g_Minigame.CurrentScene().m_rgGameData.lanes[i].enemies[j];
+						
+						// go for the enemy with the enemy with highest max HP and the least HP
+						if(currentEnemy.max_hp > maxHP && currentEnemy.hp != 0 && currentEnemy.hp < curHP)
+						{
+							curHP = currentEnemy.hp;
+							maxHP = currentEnemy.max_hp;
+							preferredTarget = j;
+						}
+					}
+					preferredLane = i;
+				}
+			}
+			
+			// No enemies of the same element are found, go for gold
+			if(!sameElementFound){
+				var potential = 0;
+				rainingGold = false;
+				for(var i = 0; i < g_Minigame.CurrentScene().m_rgGameData.lanes.length; i++){
+					// ignore if lane is empty
+					if(g_Minigame.CurrentScene().m_rgGameData.lanes[i].dps == 0)
+					   continue;
+					var stacks = 0;
+					if(typeof g_Minigame.m_CurrentScene.m_rgLaneData[i].abilities[17] != 'undefined')
+						stacks = g_Minigame.m_CurrentScene.m_rgLaneData[i].abilities[17];
+						rainingGold = true; 
+						//console.log('stacks: ' + stacks);
+					for(var m = 0; m < g_Minigame.m_CurrentScene.m_rgEnemies.length; m++) {
+						var enemyGold = g_Minigame.m_CurrentScene.m_rgEnemies[m].m_data.gold;
+						if (stacks * enemyGold > potential) {
+							potential = stacks * enemyGold;
+							preferredTarget = g_Minigame.m_CurrentScene.m_rgEnemies[m].m_nID;
+							preferredLane = i;
+						}
+					}
 				}
 			}
 		}
@@ -322,7 +367,7 @@ function goToLaneWithBestTarget() {
 		if(preferredLane != -1 && preferredTarget != -1){
 			lowLane = preferredLane;
 			lowTarget = preferredTarget;
-			console.log('Switching to a lane with best raining gold benefit');
+			//console.log('Switching to a lane with best raining gold benefit');
 		}
 		
 		// If we just finished looking at spawners, 
@@ -413,7 +458,7 @@ function usePumpedUp(){
 		console.log('Pumped up is always good.');
 		triggerAbility(ITEMS.PUMPED_UP);
 		return;
-    }
+	}
 };
 
 function useMedicsIfRelevant() {
@@ -451,7 +496,7 @@ function useGoodLuckCharmIfRelevant() {
 		console.log('Crit chance is always good.');
 		triggerAbility(ITEMS.CRIT);
 		return;
-    }
+	}
 	
 	// check if Good Luck Charms is purchased and cooled down
 	if (hasPurchasedAbility(ABILITIES.GOOD_LUCK)) {
@@ -695,20 +740,20 @@ function triggerAbility(abilityId) {
 }
 
 function toggleAbilityVisibility(abilityId, show) {
-    var vis = show === true ? "visible" : "hidden";
+	var vis = show === true ? "visible" : "hidden";
 
-    var elem = document.getElementById('ability_' + abilityId);
-    if (elem && elem.childElements() && elem.childElements().length >= 1) {
-        elem.childElements()[0].style.visibility = vis;
-    }
+	var elem = document.getElementById('ability_' + abilityId);
+	if (elem && elem.childElements() && elem.childElements().length >= 1) {
+		elem.childElements()[0].style.visibility = vis;
+	}
 }
 
 function disableAbility(abilityId) {
-    toggleAbilityVisibility(abilityId, false);
+	toggleAbilityVisibility(abilityId, false);
 }
 
 function enableAbility(abilityId) {
-    toggleAbilityVisibility(abilityId, true);
+	toggleAbilityVisibility(abilityId, true);
 }
 
 function isAbilityEnabled(abilityId) {
@@ -720,20 +765,20 @@ function isAbilityEnabled(abilityId) {
 }
 
 function toggleAbilityItemVisibility(abilityId, show) {
-    var vis = show === true ? "visible" : "hidden";
+	var vis = show === true ? "visible" : "hidden";
 
-    var elem = document.getElementById('abilityitem_' + abilityId);
-    if (elem && elem.childElements() && elem.childElements().length >= 1) {
-        elem.childElements()[0].style.visibility = vis;
-    }
+	var elem = document.getElementById('abilityitem_' + abilityId);
+	if (elem && elem.childElements() && elem.childElements().length >= 1) {
+		elem.childElements()[0].style.visibility = vis;
+	}
 }
 
 function disableAbilityItem(abilityId) {
-    toggleAbilityItemVisibility(abilityId, false);
+	toggleAbilityItemVisibility(abilityId, false);
 }
 
 function enableAbilityItem(abilityId) {
-    toggleAbilityItemVisibility(abilityId, true);
+	toggleAbilityItemVisibility(abilityId, true);
 }
 
 function isAbilityItemEnabled(abilityId) {
@@ -776,21 +821,21 @@ var thingTimer = window.setInterval(function(){
 	}
 }, 1000);
 function clickTheThing() {
-    g_Minigame.m_CurrentScene.DoClick(
-        {
-            data: {
-                getLocalPosition: function() {
-                    var enemy = g_Minigame.m_CurrentScene.GetEnemy(
-                                      g_Minigame.m_CurrentScene.m_rgPlayerData.current_lane,
-                                      g_Minigame.m_CurrentScene.m_rgPlayerData.target),
-                        laneOffset = enemy.m_nLane * 440;
+	g_Minigame.m_CurrentScene.DoClick(
+		{
+			data: {
+				getLocalPosition: function() {
+					var enemy = g_Minigame.m_CurrentScene.GetEnemy(
+									  g_Minigame.m_CurrentScene.m_rgPlayerData.current_lane,
+									  g_Minigame.m_CurrentScene.m_rgPlayerData.target),
+						laneOffset = enemy.m_nLane * 440;
 
-                    return {
-                        x: enemy.m_Sprite.position.x - laneOffset,
-                        y: enemy.m_Sprite.position.y - 52
-                    }
-                }
-            }
-        }
-    );
+					return {
+						x: enemy.m_Sprite.position.x - laneOffset,
+						y: enemy.m_Sprite.position.y - 52
+					}
+				}
+			}
+		}
+	);
 }
